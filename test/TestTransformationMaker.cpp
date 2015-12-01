@@ -229,6 +229,69 @@ BOOST_AUTO_TEST_CASE( automatic_chain_generation_complex )
     BOOST_CHECK_EQUAL( gotSample, true );
 }
 
+BOOST_AUTO_TEST_CASE( callback_only_when_tf_available )
+{
+    defaultInit();
+    std::cout << std::endl << "Testcase callback should only be called when transform is available" << std::endl;
+    transformer::Transformer tf;
+    base::samples::LaserScan ls;
+    ls.time = base::Time::fromSeconds(10);
+
+    TransformationType robot2Body;
+    robot2Body.sourceFrame = "robot";
+    robot2Body.targetFrame = "body";
+    robot2Body.time = base::Time::fromSeconds(10);
+    robot2Body.orientation = Eigen::Quaterniond::Identity();
+    robot2Body.position = Eigen::Vector3d(10,0,0);
+
+
+    TransformationType head2Body;
+    head2Body.sourceFrame = "head";
+    head2Body.targetFrame = "body";
+    head2Body.time = base::Time::fromSeconds(10);
+    head2Body.orientation = Eigen::Quaterniond::Identity();
+    head2Body.position = Eigen::Vector3d(10,0,0);
+
+    TransformationType head2Laser;
+    head2Laser.sourceFrame = "head";
+    head2Laser.targetFrame = "laser";
+    head2Laser.time = base::Time::fromSeconds(10);
+    head2Laser.orientation = Eigen::Quaterniond::Identity();
+    head2Laser.position = Eigen::Vector3d(10,0,0);
+
+    Transformation &t = tf.registerTransformation("robot", "laser");
+    int ls_idx = tf.registerDataStreamWithTransform<base::samples::LaserScan>(base::Time::fromSeconds(8), t, &ls_callback);
+    tf.pushData(ls_idx, ls.time, ls);
+
+    tf.pushStaticTransformation(robot2Body);
+    tf.pushDynamicTransformation(head2Laser);
+
+    gotCallback = false;
+    gotSample = false;
+
+    while(tf.step())
+    {
+    }
+
+    // callback should not be called because the head2Body transform is missing
+    BOOST_CHECK_EQUAL( gotCallback, false );  // fails!
+    BOOST_CHECK_EQUAL( gotSample, false );
+
+    gotCallback = false;
+    gotSample = false;
+
+    // add the missing transform
+    tf.pushDynamicTransformation(head2Body);
+
+    while(tf.step())
+    {
+    }
+
+    // now that all transforms are there, the callback should be called, and the transforms should succeed
+    BOOST_CHECK_EQUAL( gotCallback, true );  // fails!
+    BOOST_CHECK_EQUAL( gotSample, true );    // fails!
+}
+
 BOOST_AUTO_TEST_CASE( identity )
 {
     transformer::Transformer tf;
